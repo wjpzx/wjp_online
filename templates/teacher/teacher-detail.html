@@ -28,11 +28,7 @@
                             </div>
                             <div class="btn">
                                 <span class="fl btn1 collectionbtn" id="jsLeftBtn">
-                                     {% if has_teacher_faved %}
-                                        已收藏
-                                     {% else %}
-                                         收藏
-                                     {% endif %}
+                                     {% if has_teacher_faved %}已收藏{% else %}收藏{% endif %}
                                 </span>
                                 <span class="fr btn2 shareBtn bdsharebuttonbox"
                                       data-text="授课教师-李老师-慕学网"
@@ -163,7 +159,8 @@ function add_fav(current_elem, fav_id, fav_type){
                 }
 
             }else if(data.status == 'success'){
-                current_elem.text(data.msg)
+                current_elem.text(data.msg);
+                window.location.reload()
             }
         },
     });

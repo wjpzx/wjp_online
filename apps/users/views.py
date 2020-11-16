@@ -1,16 +1,48 @@
+import json
+from pure_pagination import Paginator,PageNotAnInteger
+
 from django.shortcuts import render,reverse,redirect
 from django.contrib.auth import authenticate,login,logout
 from django.contrib.auth.backends import ModelBackend
 from django.db.models import Q
 from django.views.generic.base import View
 from django.contrib.auth.hashers import make_password
-from utils.email_send import send_register_email
+from django.http import JsonResponse
+from django.shortcuts import render_to_response
 
-from .models import UserProfile,EmailVerifyRecord
-from .forms import LoginForm,RegisterForm,ForgetPwdForm,ModifyPwdForm
+from utils.email_send import send_register_email
+from .models import UserProfile,EmailVerifyRecord,Banner
+from operation.models import UserCourse,UserFavorite,UserMessage
+from course.models import CourseOrg,Course
+from organization.models import Teacher
+from .forms import LoginForm,RegisterForm,ForgetPwdForm,ModifyPwdForm,UploadImageForm,UserInfoForm
+from utils.mixin_utils import LoginRequiredMixin
 
 # Create your views here.
 
+
+class IndexView(View):
+    """首页"""
+    def get(self,request):
+        # 轮播图
+        all_banners = Banner.objects.all().order_by('index')
+        # 课程
+        courses = Course.objects.filter(is_banner=False)[:6]
+        # 课程轮播
+        banner_courses = Course.objects.filter(is_banner=True)[:3]
+        # 课程机构
+        course_orgs = CourseOrg.objects.all()[:15]
+        # print('all_banners=',banner_courses)
+        # print('courses=',courses)
+        # print('banner_courses=',banner_courses)
+        # print('course_orgs=',course_orgs)
+        context = {
+            'all_banners':all_banners,
+            'courses':courses,
+            'banner_courses':banner_courses,
+            'course_orgs':course_orgs,
+        }
+        return render(request,'index.html',context=context)
 
 # 邮箱和用户名都可以登录
 # 基础ModelBackend类，因为它有authenticte方法
@@ -167,6 +199,194 @@ class LogoutView(View):
         return redirect(reverse('index'))
 
 
+class UserInfoView(LoginRequiredMixin,View):
+    """用户个人信息"""
+    def get(self,request):
+        return render(request,'users/usercenter-info.html')
+
+
+class UploadImageView(LoginRequiredMixin,View):
+    """用户头像修改"""
+    def post(self,request):
+        # 上传的文件都在request.Files里面获取，所以这里要多传一个这个参数
+        image_form = UploadImageForm(request.POST,request.FILES)
+        if image_form.is_valid():
+            image = image_form.cleaned_data['image']
+            request.user.image = image
+            request.user.save()
+            return JsonResponse({'status':'success'})
+        else:
+            return JsonResponse({'status':'fail'})
+
+
+class UpdatePwdView(View):
+    """个人中心修改用户密码"""
+    def post(self,request):
+        modify_form = ModifyPwdForm(request.POST)
+        if modify_form.is_valid():
+            pwd1 = request.POST.get('password1',"")
+            pwd2 = request.POST.get('password2',"")
+            if pwd1 != pwd2:
+                return JsonResponse({'status':'fail','msg':'密码不一致'})
+            user =request.user
+            user.password = make_password(pwd2)
+            user.save()
+
+            return JsonResponse({'status':'success'})
+        else:
+            return JsonResponse(json.dumps(modify_form.errors))
+
+
+class SendEmailCodeView(LoginRequiredMixin,View):
+    """发送邮箱修改验证码"""
+    def get(self,request):
+        email = request.GET.get('email','')
+
+        if UserProfile.objects.filter(email=email):
+            return JsonResponse({'email':"邮箱已存在！"})
+
+        send_register_email(email,'update')
+        return JsonResponse({'status':'success'})
+
+
+class UpdateEmailView(LoginRequiredMixin,View):
+    """修改邮箱"""
+    def post(self,request):
+        email = request.POST.get('email',"")
+        code = request.POST.get('code',"")
+
+        existed_records = EmailVerifyRecord.objects.filter(email=email,code=code,send_type='update')
+        if existed_records:
+            user = request.user
+            user.email = email
+            user.save()
+            return JsonResponse({'status':'success'})
+        else:
+            return JsonResponse({'email':"验证码无效"})
+
+
+class ChangeUserInfoView(LoginRequiredMixin,View):
+    """用户个人信息"""
+    def get(self,request):
+        return render(request,'users/usercenter-info.html')
+
+    def post(self,request):
+        user_info_form = UserInfoForm(request.POST,instance=request.user)
+        if user_info_form.is_valid():
+            user_info_form.save()
+            return JsonResponse({'status':'success'})
+        else:
+            return JsonResponse(json.dumps(user_info_form.errors))
+
+
+class MyCourseView(LoginRequiredMixin, View):
+    """我的课程"""
+    def get(self, request):
+        user_courses = UserCourse.objects.filter(user=request.user)
+        context={
+            'user_courses':user_courses,
+        }
+
+        return render(request,"users/usercenter-mycourse.html",context=context)
+
+
+class MyFavOrgView(LoginRequiredMixin,View):
+    """我收藏的课程机构"""
+    def get(self,request):
+        org_list = []
+        fav_orgs = UserFavorite.objects.filter(user=request.user,fav_type=2)
+        # 上面的fav_orgs只是存放了id。我们还需要通过id找到机构对象
+        for fav_org in fav_orgs:
+            # 取出fav_id也就是机构的id。
+            org_id = fav_org.fav_id
+            print("org_id=",org_id)
+            # 获取这个机构对象
+            org = CourseOrg.objects.get(id=int(org_id))
+            org_list.append(org)
+
+        context = {
+            'org_list':org_list,
+
+        }
+        return render(request,'users/usercenter-fav-org.html',context=context)
+
+
+class MyFavTeacherView(LoginRequiredMixin,View):
+    """我收藏的授课讲师"""
+    def get(self,request):
+        teacher_list = []
+        fav_teachers =  UserFavorite.objects.filter(user=request.user,fav_type=3)
+        for fav_teacher in fav_teachers:
+            teacher_id = fav_teacher.fav_id
+            teacher = Teacher.objects.get(id=int(teacher_id))
+            teacher_list.append(teacher)
+
+        context = {
+            'teacher_list':teacher_list,
+        }
+        return render(request,'users/usercenter-fav-teacher.html',context=context)
+
+
+class MyFavCourseView(LoginRequiredMixin,View):
+    """我收藏的课程"""
+    def get(self,request):
+        course_list = []
+        fav_courses = UserFavorite.objects.filter(user=request.user,fav_type=1)
+        for fav_course in fav_courses:
+            course_id = fav_course.fav_id
+            course = Course.objects.get(id=int(course_id))
+            course_list.append(course)
+
+        context = {
+            'course_list':course_list
+        }
+        return render(request,'users/usercenter-fav-course.html',context=context)
+
+
+class MyMessageView(LoginRequiredMixin,View):
+    """我的消息"""
+    def get(self,request):
+        all_message = UserMessage.objects.filter(user=request.user.id)
+
+        try:
+            page = request.GET.get('page',1)
+        except PageNotAnInteger:
+            page = 1
+        p = Paginator(all_message,1)
+        messages = p.page(page)
+
+        context = {
+            'messages':messages
+        }
+        return render(request,'users/usercenter-message.html',context=context)
 
 
 
+# 错误显示
+def pag_not_found(request,exception):
+    # 全局404处理函数
+    return render(request,'errors/404.html',status=404)
+
+def page_error(request,exception=None):
+    # 全局500处理函数
+    return render(request,'errors/500.html',status=500)
+
+
+class LoginUnsafeView(View):
+    def get(self,request):
+        return render(request,'login.html')
+    def post(self,request):
+        user_name = request.POST.get('username',"")
+        pass_word = request.POST.get('password',"")
+
+        import pymysql
+        mysqldb = pymysql.install_as_MySQLdb()
+        conn = mysqldb.connect(host='127.0.0.1',user='root',passwd='root',db='mxonline',charset='utf8')
+        cursor = conn.cursor()
+        sql_select = "select * from users_userprofile where email='{0}' and password='{1}'".format(user_name,pass_word)
+
+        result = cursor.execute(sql_select)
+        for row in cursor.fetchall():
+            # 查询到用户
+            pass
+        print('test')

@@ -16,10 +16,10 @@ Including another URLconf
 import xadmin
 from django.urls import path,include,re_path
 from django.views.static import serve
-from django.views.generic import TemplateView
+from django.conf.urls.static import static
 
-from wjp_online.settings import MEDIA_ROOT
-
+from wjp_online.settings import MEDIA_ROOT,STATIC_ROOT
+from users import views
 urlpatterns = [
     path('xadmin/', xadmin.site.urls),
     # 文件
@@ -27,11 +27,21 @@ urlpatterns = [
     path('ueditor/',include('DjangoUeditor.urls')),
     path('captcha/',include('captcha.urls')),
 
-    path('',TemplateView.as_view(template_name='index.html'),name='index'),
+    path('',views.IndexView.as_view(),name='index'),
     path('user/',include('users.urls',namespace='user')),
 
     path('org/',include('organization.urls',namespace="org")),
 
     path('course/',include('course.urls',namespace='course')),
 
+    re_path('static/(?P<path>.*)',serve,{"document_root":STATIC_ROOT}),
+
+    # path('404.html',views.pag_not_found,name='404'),
+    # path('500.html',views.page_error,name='500'),
 ]
+
+#
+# # 全局404页面配置
+handler404 = views.pag_not_found
+# # 全局500页面配置
+handler500 = views.page_error

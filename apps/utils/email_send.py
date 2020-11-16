@@ -55,3 +55,15 @@ def send_register_email(email,send_type="register"):
             pass
         else:
             print("发送找回密码邮件失败")
+
+    if send_type == "update":
+        email_title = "在线教育修改邮箱验证码"
+        email_body = "您的邮箱验证码为{0}".format(codes)
+
+        # 使用django内置函数完成邮件发送。四个参数：主题，邮件内容，从哪里发，接受者list
+        send_status = send_mail(email_title,email_body,EMAIL_FROM,[email])
+        # 如果发送成功
+        if send_status:
+            pass
+        else:
+            print("发送修改邮箱验证码失败")

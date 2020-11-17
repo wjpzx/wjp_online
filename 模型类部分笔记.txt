@@ -1,0 +1,11 @@
+1、CharField字段属性
+    null
+        默认是False
+        当设置为False时，如果没给这个字段传递任何值，django会使用一个空字符串('')存储进去
+        设置为True时，django会产生两种空值情形（null和空字符串）
+        如果想要在表单验证的时候允许这个字符串为空，建议使用blank=True
+    blank
+        这个字段是在表单验证的时候可以为空；默认是False，不能为空
+    null和blank二者区别
+        blank=True仅仅是在表单验证等时候可以为空
+        null=True仅仅是在数据库级别的null

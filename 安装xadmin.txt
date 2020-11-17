@@ -1,0 +1,8 @@
+1、官方网站：http://x.xuebingsi.com/
+2、官方文档：https://xadmin.readthedocs.io/en/docs-chinese/
+3、安装xadmin：pip install https://codeload.github.com/sshwsfc/xadmin/zip/django2
+4、注册apps
+    'xadmin',
+    'crispy_forms',
+    'reversion',
+5、写路由 ![image-20201117102317343](C:\Users\hp\AppData\Roaming\Typora\typora-user-images\image-20201117102317343.png)
